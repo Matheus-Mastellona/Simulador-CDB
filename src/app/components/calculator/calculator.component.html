@@ -1,0 +1,412 @@
+<div class="app-shell">
+
+  <!-- ── TOP BAR ─────────────────────────────────────── -->
+  <div class="top-bar">
+    <div class="top-bar-title">
+      <span class="top-bar-icon">📈</span>
+      <span>Simulador CDB</span>
+    </div>
+    <div class="cdi-chip" [class.ok]="cdiStatus==='ok'" [class.erro]="cdiStatus==='erro'">
+      <span *ngIf="cdiStatus==='carregando'">⏳ CDI...</span>
+      <span *ngIf="cdiStatus==='erro'">⚠️ CDI manual</span>
+      <span *ngIf="cdiStatus==='ok'">
+        CDI <strong>{{ cdiChipValor }}%</strong>
+        <span *ngIf="temHistoricoReal"> ✅</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ── PAGES ────────────────────────────────────────── -->
+  <div class="pages">
+
+    <!-- ══ PAGE: SIMULAR ══════════════════════════════ -->
+    <div class="page" [class.active]="tab==='simular'">
+      <div class="page-scroll">
+
+        <!-- Presets -->
+        <div class="section-label">Produto</div>
+        <div class="presets-grid">
+          <button *ngFor="let p of PRESETS" class="preset-btn"
+            [class.active]="presetAtivo===p.banco"
+            [style.--cor]="p.cor"
+            (click)="aplicarPreset(p)">
+            {{ p.nome }}
+          </button>
+        </div>
+
+        <!-- Form -->
+        <form [formGroup]="form">
+
+          <div class="section-label">Investimento</div>
+          <div class="form-card">
+            <div class="field">
+              <label>Mês de início</label>
+              <input type="month" formControlName="dataInicio" />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Saldo Inicial</label>
+                <div class="input-wrap">
+                  <span class="pfx">R$</span>
+                  <input type="number" formControlName="saldoInicial" min="0" step="100" inputmode="decimal" />
+                </div>
+              </div>
+              <div class="field">
+                <label>Aporte Mensal</label>
+                <div class="input-wrap">
+                  <span class="pfx">R$</span>
+                  <input type="number" formControlName="aporteMensal" min="0.01" step="50" inputmode="decimal" />
+                </div>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Período (meses)</label>
+                <input type="number" formControlName="meses" min="1" max="600" inputmode="numeric" />
+              </div>
+              <div class="field">
+                <label>Dia do Aporte</label>
+                <input type="number" formControlName="diaAporte" min="1" max="28" inputmode="numeric" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section-label">Taxa</div>
+          <div class="form-card">
+            <div class="field-row">
+              <div class="field">
+                <label>CDI Anual (%)</label>
+                <div class="input-wrap">
+                  <input type="number" formControlName="cdiAnual" min="0.01" step="0.25" inputmode="decimal" class="no-pfx" />
+                  <button class="reset-cdi-btn"
+                    *ngIf="cdiAtualAnual"
+                    (click)="resetCdi()"
+                    title="Restaurar CDI atual da API">↺</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>% do CDI</label>
+                <input type="number" formControlName="percentualCdi" min="1" max="200" inputmode="decimal" />
+              </div>
+            </div>
+            <div class="taxa-hint" *ngIf="resultado">
+              Taxa efetiva: <strong>{{ taxaMensalLabel }}</strong> · DU/252
+            </div>
+          </div>
+
+        </form>
+
+        <!-- CTA -->
+        <button class="btn-calcular" (click)="tab='resultado'">
+          Ver Resultado →
+        </button>
+
+        <div class="disclaimer">
+          ℹ️ Simulação com CDI fixo hipotético. O CDI real varia diariamente.
+          Não constitui recomendação de investimento.
+        </div>
+
+        <div class="page-bottom-space"></div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: RESULTADO ════════════════════════════ -->
+    <div class="page" [class.active]="tab==='resultado'">
+      <div class="page-scroll" *ngIf="resultado; else semResultado">
+
+        <!-- KPIs principais -->
+        <div class="kpi-hero">
+          <div class="kpi-hero-label">Saldo Final Líquido</div>
+          <div class="kpi-hero-value">{{ brl(resultado.saldoFinalLiquido) }}</div>
+          <div class="kpi-hero-sub">+{{ pct(resultado.rendimentoLiquido) }} após IR e IOF</div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-mini purple">
+            <div class="kpi-mini-label">Saldo Bruto</div>
+            <div class="kpi-mini-value">{{ brl(resultado.saldoFinalBruto) }}</div>
+            <div class="kpi-mini-sub">+{{ pct(resultado.rendimentoBruto) }}</div>
+          </div>
+          <div class="kpi-mini green">
+            <div class="kpi-mini-label">Rendimento</div>
+            <div class="kpi-mini-value">{{ brl(resultado.totalRendimentoBruto) }}</div>
+            <div class="kpi-mini-sub">{{ pct(resultado.rendimentoCarteira) }} acum.</div>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-mini red">
+            <div class="kpi-mini-label">IR</div>
+            <div class="kpi-mini-value">{{ brl(resultado.totalIr) }}</div>
+            <div class="kpi-mini-sub">alíq. média {{ (resultado.aliquotaIrMedia*100).toFixed(1) }}%</div>
+          </div>
+          <div class="kpi-mini yellow">
+            <div class="kpi-mini-label">IOF</div>
+            <div class="kpi-mini-value">{{ brl(resultado.totalIof) }}</div>
+            <div class="kpi-mini-sub">primeiros 30 dias</div>
+          </div>
+        </div>
+
+        <!-- Resumo detalhado -->
+        <div class="section-label">Resumo</div>
+        <div class="summary-card">
+          <div class="summary-row">
+            <span>Saldo Inicial</span>
+            <span>{{ brl(resultado.saldoInicial) }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Total Aportado</span>
+            <span>{{ brl(resultado.totalInvestido) }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Rendimento Bruto</span>
+            <span class="green">{{ brl(resultado.totalRendimentoBruto) }}</span>
+          </div>
+          <div class="summary-row">
+            <span>IOF</span>
+            <span class="red">−{{ brl(resultado.totalIof) }}</span>
+          </div>
+          <div class="summary-row">
+            <span>IR</span>
+            <span class="red">−{{ brl(resultado.totalIr) }}</span>
+          </div>
+          <div class="summary-row summary-total">
+            <span>Rendimento Líquido</span>
+            <span class="green">{{ brl(resultado.totalRendimentoLiquido) }}</span>
+          </div>
+        </div>
+
+        <!-- IR por faixa -->
+        <div class="section-label">IR por prazo de cada aporte</div>
+        <div class="summary-card">
+          <div class="summary-row" *ngFor="let f of resultado.irDetalhado">
+            <span class="ir-faixa-label">{{ f.faixa }}</span>
+            <span class="red">{{ brl(f.ir) }}</span>
+          </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="section-label">Evolução</div>
+        <div class="chart-card">
+          <div class="chart-tabs">
+            <button class="ctab" [class.active]="chartType==='line'" (click)="setChartType('line')">Área</button>
+            <button class="ctab" [class.active]="chartType==='bar'"  (click)="setChartType('bar')">Barras</button>
+          </div>
+          <div class="chart-wrap">
+            <canvas #chartCanvas></canvas>
+          </div>
+        </div>
+
+        <div class="page-bottom-space"></div>
+      </div>
+
+      <ng-template #semResultado>
+        <div class="empty-page">
+          <div class="empty-icon">📊</div>
+          <p>Preencha os parâmetros na aba <strong>Simular</strong></p>
+        </div>
+      </ng-template>
+    </div>
+
+    <!-- ══ PAGE: HISTÓRICO ════════════════════════════ -->
+    <div class="page" [class.active]="tab==='historico'">
+      <div class="page-scroll" *ngIf="resultado; else semHist">
+
+        <div class="hist-header">
+          <span class="section-label" style="margin:0">{{ tableHint }}</span>
+        </div>
+
+        <div class="hist-list">
+          <div class="hist-item" *ngFor="let row of tableRows">
+            <div class="hist-left">
+              <div class="hist-mes">{{ row.mesAno }} <span class="hist-num">· mês {{ row.mes }}</span></div>
+              <div class="hist-aporte">Aporte {{ brl(row.aporte) }}</div>
+            </div>
+            <div class="hist-right">
+              <div class="hist-saldo">{{ brl(row.saldoLiquido) }}</div>
+              <div class="hist-rend green">+{{ brl(row.rendimentoBruto) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="page-bottom-space"></div>
+      </div>
+
+      <ng-template #semHist>
+        <div class="empty-page">
+          <div class="empty-icon">📋</div>
+          <p>Nenhum cálculo ainda.<br>Preencha os dados em <strong>Simular</strong></p>
+        </div>
+      </ng-template>
+    </div>
+
+    <!-- ══ PAGE: INFO ══════════════════════════════ -->
+    <div class="page" [class.active]="tab==='info'">
+      <div class="page-scroll">
+
+        <!-- ── GUIA DE USO ─────────────────────────── -->
+        <div class="info-hero">
+          <div class="info-hero-icon">📖</div>
+          <div class="info-hero-title">Guia de Uso</div>
+          <div class="info-hero-sub">Aprenda a usar o simulador e entenda cada resultado</div>
+        </div>
+
+        <div class="section-label">Passo a passo</div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">1</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">Escolha o produto</div>
+            <p>Selecione o banco na grade de presets. <strong>Inter CDB</strong> e <strong>Nubank</strong> pagam 100% do CDI. <strong>Itaú CDB-DI</strong> paga ~97%. Ou use <strong>Personalizado</strong> para digitar qualquer percentual.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">2</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">Defina o investimento</div>
+            <p><strong>Mês de início:</strong> quando você vai começar a investir.<br>
+            <strong>Saldo Inicial:</strong> se já tem dinheiro aplicado, coloque aqui.<br>
+            <strong>Aporte Mensal:</strong> quanto vai depositar todo mês.<br>
+            <strong>Período:</strong> por quantos meses pretende manter.<br>
+            <strong>Dia do Aporte:</strong> qual dia do mês você costuma depositar — afeta o rendimento do primeiro mês.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">3</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">Confira a taxa CDI</div>
+            <p>O app busca automaticamente o CDI atual do Banco Central. O valor aparece preenchido. Se quiser simular um cenário diferente (CDI subindo ou caindo), edite o campo e use o botão <strong>↺</strong> para voltar ao valor real.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">4</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">Toque em "Ver Resultado"</div>
+            <p>O cálculo é feito na hora. Você vai para a aba <strong>Resultado</strong> automaticamente.</p>
+          </div>
+        </div>
+
+        <!-- ── ENTENDENDO O RESULTADO ──────────────── -->
+        <div class="section-label" style="margin-top:1.5rem">Entendendo o resultado</div>
+
+        <div class="info-block">
+          <div class="info-block-title">💰 Saldo Final Líquido</div>
+          <p>É o valor que você teria na mão se resgatasse tudo no final do período — <strong>já descontado o IR e o IOF</strong>. É o número mais importante: o que você realmente recebe.</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">📈 Saldo Final Bruto</div>
+          <p>O total acumulado <strong>antes</strong> dos impostos. É o seu patrimônio bruto — inclui todo o rendimento sem nenhum desconto. O banco mostra esse número quando você vê "saldo atual".</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">📊 Rendimento Bruto</div>
+          <p>Quanto o seu dinheiro rendeu no período, sem contar impostos. É a diferença entre o Saldo Final Bruto e tudo que você depositou (saldo inicial + aportes).</p>
+          <div class="info-formula">Rendimento Bruto = Saldo Bruto − Total Depositado</div>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">🧾 IOF</div>
+          <p>Cobrado somente se você resgatar antes de 30 dias. Para aportes mantidos por mais de 30 dias, o IOF é <strong>zero</strong>. Se você simular 12 meses, apenas o último aporte pode ter IOF — e só se resgatar no mesmo mês.</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">📋 IR — Imposto de Renda</div>
+          <p>Incide sobre o rendimento de cada aporte conforme o tempo que ele ficou aplicado. Aportes mais antigos pagam menos IR. O app calcula isso individualmente para cada depósito — igual ao que o banco faz na hora do resgate.</p>
+          <div class="info-table-wrap">
+            <table class="info-table">
+              <tr><th>Prazo do aporte</th><th>Alíquota</th></tr>
+              <tr><td>Até 180 dias (~6 meses)</td><td class="red-text">22,5%</td></tr>
+              <tr><td>181 a 360 dias (~1 ano)</td><td class="yellow-text">20,0%</td></tr>
+              <tr><td>361 a 720 dias (~2 anos)</td><td class="green-text">17,5%</td></tr>
+              <tr><td>Acima de 720 dias</td><td class="green-text">15,0%</td></tr>
+            </table>
+          </div>
+          <p class="info-note">💡 Dica: quanto mais tempo você mantiver, menor o IR. Investir por mais de 2 anos cai para a alíquota mínima de 15%.</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">📉 IR por faixa de prazo</div>
+          <p>Mostra exatamente quanto de IR cada grupo de aportes vai pagar. Se você investe por 12 meses, aportes dos primeiros 6 meses pagam 20% e os últimos 6 meses pagam 22,5% — e o app separa isso para você ver.</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">📅 Histórico Mensal</div>
+          <p>Na aba <strong>Histórico</strong> você vê mês a mês:<br>
+          <strong>Saldo Líquido:</strong> quanto teria na mão se resgatasse naquele mês.<br>
+          <strong>+Rendimento:</strong> quanto aquele mês específico rendeu.</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">🎯 Dicas de uso</div>
+          <ul class="info-list">
+            <li>Compare Inter (100% CDI) vs Itaú (97% CDI) para o mesmo período — a diferença aparece no resultado</li>
+            <li>Simule com CDI menor (ex: 9%) para ver um cenário pessimista</li>
+            <li>O dia do aporte afeta o resultado — aporte no dia 1 rende mais que no dia 28</li>
+            <li>Para reserva de emergência, simule 6 meses — veja o impacto do IR de 22,5%</li>
+            <li>Para objetivos de longo prazo (+2 anos), o IR cai para 15% — compensa esperar</li>
+          </ul>
+        </div>
+
+        <!-- ── COMO FUNCIONA (metodologia) ────────── -->
+        <div class="section-label" style="margin-top:1.5rem">Como o cálculo funciona</div>
+
+        <div class="info-block">
+          <div class="info-block-title">📡 CDI Diário (DU/252)</div>
+          <p>O app usa a taxa CDI real publicada pelo Banco Central a cada dia útil (API BCB série 12). Para dias futuros, projeta com o último valor disponível. Base: 252 dias úteis — convenção usada pelo Inter, Itaú e todos os bancos.</p>
+          <div class="info-formula">taxa_dia = CDI_diário × % do CDI</div>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">📅 Calendário ANBIMA</div>
+          <p>Dias úteis calculados com calendário real incluindo Carnaval, Sexta Santa, Corpus Christi e todos os feriados nacionais — igual ao que os bancos usam.</p>
+        </div>
+
+        <div class="info-block">
+          <div class="info-block-title">⚠️ Limitações</div>
+          <ul class="info-list">
+            <li>CDI futuro projetado como constante — o real muda com o COPOM</li>
+            <li>Feriados municipais não incluídos (diferença máxima: ~2 dias/ano)</li>
+            <li>Não considera taxas do banco ou spread</li>
+            <li>Simulação didática — não é recomendação de investimento</li>
+          </ul>
+        </div>
+
+        <div class="page-bottom-space"></div>
+      </div>
+    </div>
+
+  </div><!-- /pages -->
+
+  <!-- ── BOTTOM NAV ────────────────────────────────── -->
+  <nav class="bottom-nav">
+    <button class="nav-btn" [class.active]="tab==='simular'" (click)="tab='simular'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      <span>Simular</span>
+    </button>
+    <button class="nav-btn" [class.active]="tab==='resultado'" (click)="tab='resultado'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span>Resultado</span>
+    </button>
+    <button class="nav-btn" [class.active]="tab==='historico'" (click)="tab='historico'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+      </svg>
+      <span>Histórico</span>
+    </button>
+    <button class="nav-btn" [class.active]="tab==='info'" (click)="tab='info'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span>Como funciona</span>
+    </button>
+  </nav>
+
+</div>

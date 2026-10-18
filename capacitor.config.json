@@ -1,0 +1,11 @@
+{
+  "appId": "com.simulador.cdb",
+  "appName": "Simulador CDB",
+  "webDir": "dist/cal-angular/browser",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
